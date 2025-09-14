@@ -2,12 +2,16 @@ import os, json
 from types import SimpleNamespace
 
 
-def save_config(config):
+config = None   
+
+def save_config():
+    global config
     with open("./data/config.json", "w", encoding='utf-8') as f:
-        f.write(json.dumps(config, indent=4, ensure_ascii=False))
+        f.write(json.dumps(vars(config), indent=4, ensure_ascii=False))
         
         
 def read_config():
+    global config
     if not os.path.exists("./data/config.json"):
         with open("./data/config.json", 'w') as f:
             f.write(json.dumps(
@@ -26,12 +30,9 @@ def read_config():
             return False
     else:
         with open("./data/config.json", 'r') as f:
-            config = json.loads(f.read())
-            return SimpleNamespace(**config)
-        
-
-        
-        
+            config = SimpleNamespace(**json.loads(f.read()))
+            return True
+    
         
 if __name__ == "__main__":
     print(read_config())

@@ -1,0 +1,8 @@
+{
+    "user_id": "YOUR_USER_ID",
+    "user_hash": "YOUR_USER_HASH",
+    "user_phone": "YOUR_PHONE_NUMBER",
+    "config_chat": 0,
+    "chats": [],
+    "webhooks": ["YOUR_DISCORD_WEBHOOK"]
+}
