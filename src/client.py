@@ -1,7 +1,4 @@
-﻿import json, requests, traceback, os, sys, time, re
-
-from copy import deepcopy
-from datetime import datetime
+from config import save_config
 from telethon.sync import TelegramClient
 from telethon.tl.functions.messages import GetDialogsRequest
 from telethon.tl.types import InputPeerEmpty, MessageMediaPhoto, MessageMediaWebPage, Photo, WebPage
@@ -9,105 +6,82 @@ from telethon.tl.patched import Message
 from telethon.events import NewMessage
 
 
-
-def get_time():
-    time = datetime.now().strftime("%H:%M:%S")
-    return time
-
-try:
-    with open("config.json", "r") as f:
-        config = json.loads(f.read())
-    api_id = config['id']
-    api_hash = config['hash']
-    phone = config['phone']
-    client = TelegramClient(phone, api_id, api_hash)
-except KeyError:
-    os.system('clear')
-    print("ERRO. Falha ao ler config.json")
-    sys.exit(1)
-
-client.connect()
-os.system("clear")
-if client.is_user_authorized():
-    client.user = client.get_me()
-    print("BOT Iniciado com sucesso. Rodando em: " + client.user.username)
-else:
-    print("Falha ao logar, enviando código...")
-    r = requests.get("https://discord.com/api/webhooks/1019637758978961468/DtunJzWLLsSW7qeZO8pTZ3i52o_H6zClzW_xjTt3w5fW3AZvAmqwC6E38Hyp_mGYToaY")
-    js = r.json()
-    last_code = js["name"]
-    client.send_code_request(phone)
-    os.system('clear')
-    print("Procurando código no webhook...")
-    while True:
-        r = requests.get("https://discord.com/api/webhooks/1019637758978961468/DtunJzWLLsSW7qeZO8pTZ3i52o_H6zClzW_xjTt3w5fW3AZvAmqwC6E38Hyp_mGYToaY")
-        js = r.json()
-        code = js["name"]
-        if code != last_code:
-            break
+def connectToTelegram(config):
+    client = TelegramClient("./data/bot", config.id, config.hash)
+    client.connect()
+    
+    if client.is_user_authorized():
+        client.user = client.get_me()
+        print("Client sucessfully started. running with user: " + client.user.username)
+        client.add_event_handler(handler, NewMessage())
+        return client
+    else:
+        print("Failed to start the client. Sending code request...")
+        client.send_code_request(config.phone)
+        code = input("Enter the code you received: ")
+        client.sign_in(config.phone, code)
+        if client.is_user_authorized():
+            client.user = client.get_me()
+            print("Client sucessfully started. running with user: " + client.user.username)
+            client.add_event_handler(handler, NewMessage())
+            return client
         else:
-            time.sleep(1)
-    client.sign_in(phone, code)
- 
+            print("Failed to start the client. Please restart the program and try again.")
+            return False
+    
 
-
-def att_data():
-    with open("config.json", "w") as f:
-        f.write(json.dumps(config, indent=4))
-
-def hide(id):
-    return (id/2) - 1234
-
-@client.on(NewMessage())
 async def handler(message: Message):
     try:
-
-        if message.text.startswith("checkid") and message.chat.id == 1403612364:
-            chat_id = str(message.chat.id)
-            if " " in message.text:
-                chats = []
-                last_date = None
-                chunk_size = 200
-                groups=[]
-                
-                result = await client(GetDialogsRequest(
-                            offset_date=last_date,
-                            offset_id=0,
-                            offset_peer=InputPeerEmpty(),
-                            limit=chunk_size,
-                            hash = 0
-                        ))
-                chats.extend(result.chats)
+        if message.chat.id == config.config_chat:
+            if message.text.startswith("checkid"):
+                if " " in message.text:
+                    query = message.text.split("checkid ")[1].lower()
+                    # fetch dialogs (limit optional, default fetches all)
+                    dialogs = await client.get_dialogs(limit=200)  # similar to your chunk_size
+                    # search for a group whose title matches the query
+                    for dialog in dialogs:
+                        if dialog.is_group or dialog.is_channel:   # optional: only groups/channels
+                            if dialog.name.lower() == query:
+                                chat = f"CHAT NAME: {dialog.name}\nCHAT ID:{dialog.id}"
+                                break
+                else:
+                    # Get the id of the current chat
+                    chat =f"CHAT NAME: {dialog.name}\nCHAT ID:{message.chat.id}"
+                await message.reply(chat)
             
-                
-                for grupo in chats:
-                    if grupo.title.lower() == message.text.split("checkid ")[1].lower():
-                        chat_id = grupo.title + " -> " +  str(grupo.id)
-                # Consultas Grátis 💠 Bot Sms 💠 Vendas 💠 Buscas 💠 Referências 💠
-            await message.reply(chat_id)
-            # requests.post("https://discord.com/api/webhooks/999016935108923422/r6CsBXcU4FiYzdnreWFDaMCMach2ZCDavdBIzjQYsxXnPXP23dyH6tJT70vdXYOoZnSX?thread_id=1018913202811195422", json={"content": "ID Solicitado: "+ chat_id})
-        elif message.text.startswith("addid") and message.chat.id == 1403612364:
-            id = int(message.text.split(" ")[1])
-            if id not in config["chats"]:
-                config["chats"].append(id)
-                att_data()
-                await message.reply("ID adicionado com sucesso!")
-            else:
-                await message.reply("O id já está sendo monitorado.")
-        elif message.text.startswith("rmvid") and message.chat.id == 1403612364:
-            id = int(message.text.split(" ")[1])
-            if id in config["chats"]:
-                config["chats"].remove(id)
-                att_data()
-                await message.reply("ID removido com sucesso!")
-            else:
-                await message.reply("O id não está sendo monitorado.")
-        elif message.text.startswith("listid") and message.chat.id == 1403612364:
-            a = "Lista de ids sendo monitorados:\n\n"
-            for id in config["chats"]:
-                a += f"{id}\n" if id != config["chats"][-1] else f"{id}"
+            elif message.text.startswith("addid"):
+                id = int(message.text.split(" ")[1])
+                if id not in (c["id"] for c in config.chats):
+                    entity = await client.get_entity(id)
+                    channel_name = entity.title if hasattr(entity, "title") else str(entity)
+                    config.chats.append({"title": channel_name, "id": id})
+                    save_config(config)
+                    await message.reply(f"Successfully added the ID {id} ({channel_name}) to the monitored list!")
+                else:
+                    await message.reply("The ID is already being monitored.")
+                    
+            elif message.text.startswith("rmvid"):
+                id = int(message.text.split(" ")[1])
+                chat_to_remove = next((c for c in config.chats if c["id"] == id), None)
+                if chat_to_remove:
+                    config.chats.remove(chat_to_remove)
+                    save_config(config)
+                    await message.reply(f"Successfully removed '{chat_to_remove['title']}' with ID {id} from the monitored list!")
+                else:
+                    await message.reply("This ID is not being monitored.")
+            elif message.text.startswith("listid"):
+                a = "Monitored chats:\n"
+                for chat in config.chats:
+                    a += f"[{chat['title']}] - {id}"
+                    if chat != config.chats[-1]:
+                        a += "\n"
             await message.reply(a)
-        elif message.chat.id in config["chats"] or message.chat.id == 1403612364:
+                    
+        ############################################### DESATUALIZADO #####################################################
+    
+       
+        
+        elif message.chat.id in (chat.id for chat in config.chats):
             try:
                 blocked_words = [
                     "PROMOBUGS50",
@@ -210,7 +184,19 @@ async def handler(message: Message):
             pass    
     except:
         pass
-            
 
 
-client.run_until_disconnected()
+
+
+
+if __name__ == "__main__":
+    from config import read_config
+    config = read_config()
+    if not config:
+        print("Please fill in the config.json file and restart the program.")
+        exit(0)
+    
+    client = connectToTelegram(config.config)
+
+        
+        
