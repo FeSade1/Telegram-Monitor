@@ -18,9 +18,9 @@ def connect_to_Telegram():
         return client
     else:
         print("Failed to start the client. Sending code request...")
-        client.send_code_request(config.config.phone)
+        client.send_code_request(config.config.user_phone)
         code = input("Enter the code you received: ")
-        client.sign_in(config.config.phone, code)
+        client.sign_in(config.config.user_phone, code)
         if client.is_user_authorized():
             client.user = client.get_me()
             print("Client sucessfully started. running with user: " + client.user.username)
@@ -32,7 +32,7 @@ def connect_to_Telegram():
     
 
 async def handler(message: Message):
-    if message.chat_id == config.config.config_chat:
+    if message.chat_id == config.config.config_chat or message.text == "checkid":
         # Commands to manage monitored chats
         if message.text.startswith("checkid"):
             if " " in message.text:
@@ -45,9 +45,12 @@ async def handler(message: Message):
                         if dialog.name.lower() == query:
                             chat = f"CHAT NAME: {dialog.name}\nCHAT ID:{dialog.id}"
                             break
+                else:
+                    chat = "No chat found with that name."
             else:
                 # Get the id of the current chat
-                chat =f"CHAT NAME: {message.chat.title}\nCHAT ID:{message.chat.id}"
+                chat =f"CHAT NAME: {message.chat.title}\nCHAT ID:{message.chat_id}"
+            print("[checkid] " + chat)
             await message.reply(chat)
         
         elif message.text.startswith("addid"):
@@ -57,8 +60,10 @@ async def handler(message: Message):
                 channel_name = entity.title if hasattr(entity, "title") else str(entity)
                 config.config.chats.append({"title": channel_name, "id": id})
                 config.save_config()
+                print(f"[addid] Added {channel_name} with ID {id} to the monitored list.")
                 await message.reply(f"Successfully added the ID {id} ({channel_name}) to the monitored list!")
             else:
+                print(f"[addid] ID {id} is already being monitored.")
                 await message.reply("The ID is already being monitored.")
                 
         elif message.text.startswith("rmvid"):
@@ -67,8 +72,10 @@ async def handler(message: Message):
             if chat_to_remove:
                 config.config.chats.remove(chat_to_remove)
                 config.save_config()
+                print(f"[rmvid] Removed {chat_to_remove['title']} with ID {id} from the monitored list.")
                 await message.reply(f"Successfully removed '{chat_to_remove['title']}' with ID {id} from the monitored list!")
             else:
+                print(f"[rmvid] ID {id} is not being monitored.")
                 await message.reply("This ID is not being monitored.")
         elif message.text.startswith("listids"):
             a = "Monitored chats:\n"
@@ -76,6 +83,7 @@ async def handler(message: Message):
                 a += f"[{chat['title']}] - {id}"
                 if chat != config.config.chats[-1]:
                     a += "\n"
+            print("[listids] Listing monitored chats.")
             await message.reply(a)
                 
     
